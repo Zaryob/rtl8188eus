@@ -1325,11 +1325,11 @@ static void construct_ctr_preload(
 		ctr_preload[1] = mpdu[30] & 0x0f;   /* QoC_Control */
 	if (qc_exists && !a4_exists)
 		ctr_preload[1] = mpdu[24] & 0x0f;
-#ifdef CONFIG_IEEE80211W
+#if defined(CONFIG_IEEE80211W) || defined(CONFIG_RTW_MESH)
 	/* 802.11w management frame should set management bit(4) */
 	if (frtype == WIFI_MGT_TYPE)
 		ctr_preload[1] |= BIT(4);
-#endif /* CONFIG_IEEE80211W */
+#endif
 	for (i = 2; i < 8; i++)
 		ctr_preload[i] = mpdu[i + 8];                       /* ctr_preload[2:7] = A2[0:5] = mpdu[10:15] */
 #ifdef CONSISTENT_PN_ORDER
@@ -1991,13 +1991,13 @@ u32	rtw_aes_decrypt(_adapter *padapter, u8 *precvframe)
 				no_gkey_bc_cnt = 0;
 				no_gkey_mc_cnt = 0;
 
-				prwskey = psecuritypriv->dot118021XGrpKey[prxattrib->key_index].skey;
-				if (psecuritypriv->dot118021XGrpKeyid != prxattrib->key_index) {
-					RTW_DBG("not match packet_index=%d, install_index=%d\n"
-						, prxattrib->key_index, psecuritypriv->dot118021XGrpKeyid);
-					res = _FAIL;
-					goto exit;
-				}
+					prwskey = psecuritypriv->dot118021XGrpKey[prxattrib->key_index].skey;
+					if (psecuritypriv->dot118021XGrpKeyid != prxattrib->key_index) {
+						RTW_DBG("not match packet_index=%d, install_index=%d\n"
+							, prxattrib->key_index, psecuritypriv->dot118021XGrpKeyid);
+						res = _FAIL;
+						goto exit;
+					}
 			} else
 				prwskey = &stainfo->dot118021x_UncstKey.skey[0];
 
@@ -2085,37 +2085,37 @@ u32	rtw_BIP_verify(_adapter *padapter, u8 *precvframe)
 		/* clear the MIC field of MME to zero */
 		_rtw_memset(p + 2 + len - 8, 0, 8);
 
-		/* conscruct AAD, copy frame control field */
-		_rtw_memcpy(BIP_AAD, &pwlanhdr->frame_ctl, 2);
-		ClearRetry(BIP_AAD);
-		ClearPwrMgt(BIP_AAD);
-		ClearMData(BIP_AAD);
-		/* conscruct AAD, copy address 1 to address 3 */
-		_rtw_memcpy(BIP_AAD + 2, pwlanhdr->addr1, 18);
+	/* conscruct AAD, copy frame control field */
+	_rtw_memcpy(BIP_AAD, &pwlanhdr->frame_ctl, 2);
+	ClearRetry(BIP_AAD);
+	ClearPwrMgt(BIP_AAD);
+	ClearMData(BIP_AAD);
+	/* conscruct AAD, copy address 1 to address 3 */
+	_rtw_memcpy(BIP_AAD + 2, pwlanhdr->addr1, 18);
 
-		if (omac1_aes_128(padapter->securitypriv.dot11wBIPKey[padapter->securitypriv.dot11wBIPKeyid].skey
-				  , BIP_AAD, ori_len, mic))
-			goto BIP_exit;
+	if (omac1_aes_128(padapter->securitypriv.dot11wBIPKey[padapter->securitypriv.dot11wBIPKeyid].skey
+				, BIP_AAD, ori_len, mic))
+		goto BIP_exit;
 
 #if 0
-		/* management packet content */
-		{
-			int pp;
-			RTW_INFO("pkt: ");
-			for (pp = 0; pp < pattrib->pkt_len; pp++)
+	/* management packet content */
+	{
+		int pp;
+		RTW_INFO("pkt: ");
+		for (pp = 0; pp < pattrib->pkt_len; pp++)
 				printk(" %02x ", pframe[pp]);
-			RTW_INFO("\n");
-			/* BIP AAD + management frame body + MME(MIC is zero) */
-			RTW_INFO("AAD+PKT: ");
-			for (pp = 0; pp < ori_len; pp++)
-				RTW_INFO(" %02x ", BIP_AAD[pp]);
-			RTW_INFO("\n");
-			/* show the MIC result */
-			RTW_INFO("mic: ");
-			for (pp = 0; pp < 16; pp++)
-				RTW_INFO(" %02x ", mic[pp]);
-			RTW_INFO("\n");
-		}
+		RTW_INFO("\n");
+		/* BIP AAD + management frame body + MME(MIC is zero) */
+		RTW_INFO("AAD+PKT: ");
+		for (pp = 0; pp < ori_len; pp++)
+			RTW_INFO(" %02x ", BIP_AAD[pp]);
+		RTW_INFO("\n");
+		/* show the MIC result */
+		RTW_INFO("mic: ");
+		for (pp = 0; pp < 16; pp++)
+			RTW_INFO(" %02x ", mic[pp]);
+		RTW_INFO("\n");
+	}
 #endif
 		/* MIC field should be last 8 bytes of packet (packet without FCS) */
 		if (_rtw_memcmp(mic, pframe + pattrib->pkt_len - 8, 8)) {
@@ -2135,6 +2135,7 @@ BIP_exit:
 
 #ifndef PLATFORM_FREEBSD
 /* compress 512-bits */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0))
 static int sha256_compress(struct sha256_state *md, unsigned char *buf)
 {
 	u32 S[8], W[64], t0, t1;
@@ -2181,8 +2182,10 @@ static int sha256_compress(struct sha256_state *md, unsigned char *buf)
 		md->state[i] = md->state[i] + S[i];
 	return 0;
 }
+#endif
 
 /* Initialize the hash state */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0))
 static void sha256_init(struct sha256_state *md)
 {
 	md->curlen = 0;
@@ -2196,6 +2199,7 @@ static void sha256_init(struct sha256_state *md)
 	md->state[6] = 0x1F83D9ABUL;
 	md->state[7] = 0x5BE0CD19UL;
 }
+#endif
 
 /**
    Process a block of memory though the hash
@@ -2204,13 +2208,15 @@ static void sha256_init(struct sha256_state *md)
    @param inlen  The length of the data (octets)
    @return CRYPT_OK if successful
 */
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0))
 static int sha256_process(struct sha256_state *md, unsigned char *in,
 			  unsigned long inlen)
 {
 	unsigned long n;
 #define block_size 64
 
-	if (md->curlen > sizeof(md->buf))
+	if (md->curlen >= sizeof(md->buf))
 		return -1;
 
 	while (inlen > 0) {
@@ -2237,6 +2243,7 @@ static int sha256_process(struct sha256_state *md, unsigned char *in,
 
 	return 0;
 }
+#endif
 
 
 /**
@@ -2245,6 +2252,7 @@ static int sha256_process(struct sha256_state *md, unsigned char *in,
    @param out [out] The destination of the hash (32 bytes)
    @return CRYPT_OK if successful
 */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0))
 static int sha256_done(struct sha256_state *md, unsigned char *out)
 {
 	int i;
@@ -2283,6 +2291,7 @@ static int sha256_done(struct sha256_state *md, unsigned char *out)
 
 	return 0;
 }
+#endif
 
 /**
  * sha256_vector - SHA256 hash for data vector
@@ -2292,6 +2301,8 @@ static int sha256_done(struct sha256_state *md, unsigned char *out)
  * @mac: Buffer for the hash
  * Returns: 0 on success, -1 of failure
  */
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0))
 static int sha256_vector(size_t num_elem, u8 *addr[], size_t *len,
 			 u8 *mac)
 {
@@ -2306,6 +2317,7 @@ static int sha256_vector(size_t num_elem, u8 *addr[], size_t *len,
 		return -1;
 	return 0;
 }
+#endif
 
 static u8 os_strlen(const char *s)
 {
@@ -2317,7 +2329,7 @@ static u8 os_strlen(const char *s)
 
 static int os_memcmp(void *s1, void *s2, u8 n)
 {
-	unsigned char *p1 = s1, *p2 = s2;
+	const unsigned char *p1 = s1, *p2 = s2;
 
 	if (n == 0)
 		return 0;
@@ -2342,6 +2354,8 @@ static int os_memcmp(void *s1, void *s2, u8 n)
  * @len: Lengths of the data blocks
  * @mac: Buffer for the hash (32 bytes)
  */
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0))
 static void hmac_sha256_vector(u8 *key, size_t key_len, size_t num_elem,
 			       u8 *addr[], size_t *len, u8 *mac)
 {
@@ -2403,6 +2417,7 @@ static void hmac_sha256_vector(u8 *key, size_t key_len, size_t num_elem,
 	_len[1] = 32;
 	sha256_vector(2, _addr, _len, mac);
 }
+#endif
 #endif /* PLATFORM_FREEBSD */
 /**
  * sha256_prf - SHA256-based Pseudo-Random Function (IEEE 802.11r, 8.5.1.5.2)
@@ -2418,6 +2433,7 @@ static void hmac_sha256_vector(u8 *key, size_t key_len, size_t num_elem,
  * given key.
  */
 #ifndef PLATFORM_FREEBSD /* Baron */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0))
 static void sha256_prf(u8 *key, size_t key_len, char *label,
 		       u8 *data, size_t data_len, u8 *buf, size_t buf_len)
 {
@@ -2454,6 +2470,7 @@ static void sha256_prf(u8 *key, size_t key_len, char *label,
 		counter++;
 	}
 }
+#endif
 #endif /* PLATFORM_FREEBSD Baron */
 
 /* AES tables*/
@@ -2723,7 +2740,7 @@ static void rijndaelEncrypt(u32 rk[/*44*/], u8 pt[16], u8 ct[16])
 	PUTU32(ct + 12, s3);
 }
 
-static void *aes_encrypt_init(u8 *key, size_t len)
+static void *aes_encrypt_init(const u8 *key, size_t len)
 {
 	u32 *rk;
 	if (len != 16)
@@ -2773,12 +2790,12 @@ static void aes_encrypt_deinit(void *ctx)
  * OMAC1 was standardized with the name CMAC by NIST in a Special Publication
  * (SP) 800-38B.
  */
-static int omac1_aes_128_vector(u8 *key, size_t num_elem,
-				u8 *addr[], size_t *len, u8 *mac)
+static int omac1_aes_128_vector(const u8 *key, size_t num_elem,
+			 const u8 *addr[], const size_t *len, u8 *mac)
 {
 	void *ctx;
 	u8 cbc[AES_BLOCK_SIZE], pad[AES_BLOCK_SIZE];
-	u8 *pos, *end;
+	const u8 *pos, *end;
 	size_t i, e, left, total_len;
 
 	ctx = aes_encrypt_init(key, 16);
@@ -2846,14 +2863,14 @@ static int omac1_aes_128_vector(u8 *key, size_t num_elem,
  * OMAC1 was standardized with the name CMAC by NIST in a Special Publication
  * (SP) 800-38B.
  */ /* modify for CONFIG_IEEE80211W */
-int omac1_aes_128(u8 *key, u8 *data, size_t data_len, u8 *mac)
+int omac1_aes_128(const u8 *key, const u8 *data, size_t data_len, u8 *mac)
 {
 	return omac1_aes_128_vector(key, 1, &data, &data_len, mac);
 }
 #endif /* PLATFORM_FREEBSD Baron */
 
 #ifdef CONFIG_TDLS
-void wpa_tdls_generate_tpk(_adapter *padapter, PVOID sta)
+void wpa_tdls_generate_tpk(_adapter *padapter, void *sta)
 {
 	struct sta_info *psta = (struct sta_info *)sta;
 	struct mlme_priv	*pmlmepriv = &padapter->mlmepriv;
@@ -2888,11 +2905,11 @@ void wpa_tdls_generate_tpk(_adapter *padapter, PVOID sta)
 	 * added by the KDF anyway..
 	 */
 
-	if (os_memcmp(adapter_mac_addr(padapter), psta->hwaddr, ETH_ALEN) < 0) {
+	if (os_memcmp(adapter_mac_addr(padapter), psta->cmn.mac_addr, ETH_ALEN) < 0) {
 		_rtw_memcpy(data, adapter_mac_addr(padapter), ETH_ALEN);
-		_rtw_memcpy(data + ETH_ALEN, psta->hwaddr, ETH_ALEN);
+		_rtw_memcpy(data + ETH_ALEN, psta->cmn.mac_addr, ETH_ALEN);
 	} else {
-		_rtw_memcpy(data, psta->hwaddr, ETH_ALEN);
+		_rtw_memcpy(data, psta->cmn.mac_addr, ETH_ALEN);
 		_rtw_memcpy(data + ETH_ALEN, adapter_mac_addr(padapter), ETH_ALEN);
 	}
 	_rtw_memcpy(data + 2 * ETH_ALEN, get_bssid(pmlmepriv), ETH_ALEN);
