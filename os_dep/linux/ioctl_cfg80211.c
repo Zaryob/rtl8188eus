@@ -349,9 +349,16 @@ static const struct ieee80211_txrx_stypes
 
 static u64 rtw_get_systime_us(void)
 {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(5, 0, 0))
+        return ktime_to_us(ktime_get_boottime());
+
+#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 39))
 	struct timespec ts;
+	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0))
+	getboottime(&ts);
+	#else
 	get_monotonic_boottime(&ts);
+	#endif
 	return ((u64)ts.tv_sec * 1000000) + ts.tv_nsec / 1000;
 #else
 	struct timeval tv;
