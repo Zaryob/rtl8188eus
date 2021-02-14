@@ -5939,6 +5939,12 @@ static void cfg80211_rtw_mgmt_frame_register(struct wiphy *wiphy,
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0))
 	struct net_device *ndev = wdev_to_ndev(wdev);
 #endif
+
+/* If not registered set as true to pass compilation */
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0))
+        bool reg = true;
+#endif
+
 	_adapter *adapter;
 
 	struct rtw_wdev_priv *pwdev_priv;
@@ -5957,7 +5963,12 @@ static void cfg80211_rtw_mgmt_frame_register(struct wiphy *wiphy,
 	/* Wait QC Verify */
 	return;
 
-	switch (frame_type) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0))
+        switch (upd->interface_stypes) {
+#else
+        switch (frame_type) {
+#endif
+
 	case IEEE80211_STYPE_PROBE_REQ: /* 0x0040 */
 		SET_CFG80211_REPORT_MGMT(pwdev_priv, IEEE80211_STYPE_PROBE_REQ, reg);
 		break;
