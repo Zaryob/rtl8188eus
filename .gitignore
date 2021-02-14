@@ -3,11 +3,11 @@
 *.o.d
 *.ko
 *.ko.cmd
+*.mod
 *.mod.c
-
-module.order
-Module.symvers
-modules.order
-
-.tmp_versions/
+*.mod.cmd
+*.order
+*.symvers
+*.order.cmd
+*.symvers.cmd
 
